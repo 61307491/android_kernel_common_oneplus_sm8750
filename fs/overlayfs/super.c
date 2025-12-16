@@ -751,7 +751,7 @@ static int ovl_make_workdir(struct super_block *sb, struct ovl_fs *ofs,
 	/* Check if upper/work fs supports RENAME_WHITEOUT */
 	err = ovl_check_rename_whiteout(ofs);
 	if (err < 0)
-		goto out;
+		err = 0;
 
 	rename_whiteout = err;
 	if (!rename_whiteout)
@@ -793,18 +793,6 @@ static int ovl_make_workdir(struct super_block *sb, struct ovl_fs *ofs,
 		err = 0;
 	} else {
 		ovl_removexattr(ofs, ofs->workdir, OVL_XATTR_OPAQUE);
-	}
-
-	/*
-	 * We allowed sub-optimal upper fs configuration and don't want to break
-	 * users over kernel upgrade, but we never allowed remote upper fs, so
-	 * we can enforce strict requirements for remote upper fs.
-	 */
-	if (ovl_dentry_remote(ofs->workdir) &&
-	    (!d_type || !rename_whiteout || ofs->noxattr)) {
-		pr_err("upper fs missing required features.\n");
-		err = -EINVAL;
-		goto out;
 	}
 
 	/*
@@ -1178,6 +1166,11 @@ static struct ovl_entry *ovl_get_lowerstack(struct super_block *sb,
 
 	if (!ofs->config.upperdir && ctx->nr == 1) {
 		pr_err("at least 2 lowerdir are needed while upperdir nonexistent\n");
+		return ERR_PTR(-EINVAL);
+	}
+
+	if (ctx->nr == ctx->nr_data) {
+		pr_err("at least one non-data lowerdir is required\n");
 		return ERR_PTR(-EINVAL);
 	}
 
